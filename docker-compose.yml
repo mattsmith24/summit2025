@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    networks:
+      - redis-network
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  redis-publisher:
+    build: .
+    container_name: redis-publisher
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - redis-network
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    volumes:
+      - ./songs:/app/songs:ro
+    # Override default command as needed
+    command: ["python", "redis_publisher.py", "songs/sample_notes.csv", "--redis-type", "pubsub"]
+    # Prevent automatic restart after script completion
+    restart: "no"
+
+  music-player:
+    build:
+      context: .
+      dockerfile: Dockerfile.music_player
+    container_name: music-player
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - redis-network
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    # Override default command to use silent mode for containers
+    command: ["python", "music_player.py", "--channel", "music"]
+    # Keep running to listen for music
+    restart: unless-stopped
+
+networks:
+  redis-network:
+    driver: bridge
+
+volumes:
+  redis-data:
