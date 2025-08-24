@@ -11,8 +11,12 @@ import math
 import argparse
 from typing import Optional
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 HOUR_MSECS = 3600000
+
+# Set matplotlib to non-blocking mode
+plt.ion()
 
 class TemperatureSensor:
     def __init__(self, redis_host: str = 'localhost', redis_port: int = 6379):
@@ -290,6 +294,29 @@ class TemperatureSensor:
                 print(f"Max: {max_temp:.2f}°C")
                 print(f"Avg: {avg_temp:.2f}°C")
 
+
+                # Display the data on a graph
+                x = [sample[0] for sample in recent_data]
+                y = [float(sample[1]) for sample in recent_data]
+                plt.figure(figsize=(10, 6))
+                plt.plot(x, y, 'b-', linewidth=1.5)
+                plt.xlabel('Timestamp (milliseconds)')
+                plt.ylabel('Temperature (°C)')
+                plt.title('Five Minute Temperature Data')
+
+                # Pick ten evenly spaced ticks from the x data
+                x_ticks = x[::len(x)//10]
+                x_labels = [datetime.fromtimestamp(ts / 1000).strftime('%Y-%m-%d %H:%M:%S') for ts in x_ticks]
+                plt.xticks(x_ticks, x_labels, rotation=45)
+
+                plt.grid(True, alpha=0.3)
+                plt.tight_layout()
+                plt.show(block=False)
+                plt.draw()
+                print("📊 Five-minute temperature plot opened in new window")
+
+
+
         except Exception as e:
             print(f"Could not calculate temperature statistics: {e}")
 
@@ -306,6 +333,32 @@ class TemperatureSensor:
                 temperature = avg[1]
                 timestamp_str = datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
                 print(f"{timestamp_str}: {temperature:.2f}°C")
+
+            # Display the data on a graph
+            if len(hourly_averages) > 0:
+                timestamps = [sample[0] for sample in hourly_averages]
+                temperatures = [float(sample[1]) for sample in hourly_averages]
+
+                # Convert timestamps to datetime objects for better x-axis labels
+                datetime_labels = [datetime.fromtimestamp(ts / 1000) for ts in timestamps]
+
+                plt.figure(figsize=(12, 6))
+                plt.bar(range(len(temperatures)), temperatures, width=0.8, color='orange', alpha=0.7)
+                plt.xlabel('Time')
+                plt.ylabel('Temperature (°C)')
+                plt.title('Hourly Average Temperatures')
+                plt.grid(True, alpha=0.3)
+
+                # Set x-axis labels to show datetime
+                plt.xticks(range(len(datetime_labels)),
+                          [dt.strftime('%m-%d %H:%M') for dt in datetime_labels],
+                          rotation=45)
+                plt.tight_layout()
+                plt.show(block=False)
+                plt.draw()
+                print("📊 Hourly averages bar chart opened in new window")
+            else:
+                print("No hourly average data available for plotting.")
 
     def display_spikes(self) -> None:
         spikes = self.redis_client.ts().range(
@@ -336,6 +389,26 @@ class TemperatureSensor:
             if max_value > 0.0:
                 timestamp_str = datetime.fromtimestamp(max_value_timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
                 print(f"{timestamp_str}: {max_value:.2f}°C")
+
+            # Display the data on a graph
+            if len(spikes) > 0:
+                timestamps = [sample[0] for sample in spikes]
+                temperatures = [float(sample[1]) for sample in spikes]
+
+                plt.figure(figsize=(12, 6))
+                plt.scatter(timestamps, temperatures)
+                plt.xlabel('Time')
+                plt.ylabel('Temperature (°C)')
+                plt.title('Spikes')
+                # Pick ten evenly spaced ticks from the x data
+                x_ticks = timestamps[::len(timestamps)//10]
+                x_labels = [datetime.fromtimestamp(ts / 1000).strftime('%Y-%m-%d %H:%M:%S') for ts in x_ticks]
+                plt.xticks(x_ticks, x_labels, rotation=45)
+                plt.grid(True, alpha=0.3)
+                plt.tight_layout()
+                plt.show(block=False)
+                plt.draw()
+                print("📊 Spikes scatter plot opened in new window")
 
     def display_compaction(self) -> None:
         try:
@@ -458,6 +531,11 @@ def main():
 
         if args.stats:
             sensor.display_statistics()
+            # Keep the script running until user decides to exit
+            try:
+                input("Press Enter to exit...")
+            except KeyboardInterrupt:
+                pass
             return
 
         # Create TimeSeries
@@ -473,9 +551,14 @@ def main():
 
         # If no specific operation requested, generate default historical data
         if not any([args.historical, args.realtime, args.stats]):
-            print("No operation specified. Generating 10,000 historical samples...")
-            sensor.simulate_historical_data(10000, 1)
+            print("No operation specified. Generating 25,000 historical samples...")
+            sensor.simulate_historical_data(25000, 1)
             sensor.display_statistics()
+            # Keep the script running until user decides to exit
+            try:
+                input("Press Enter to exit...")
+            except KeyboardInterrupt:
+                pass
 
     except Exception as e:
         print(f"❌ Error: {e}")
