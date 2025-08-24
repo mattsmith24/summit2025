@@ -168,14 +168,15 @@ class MusicPlayer:
             wave = np.sin(2 * np.pi * frequency * t)
 
             fade_samples = int(0.005 * self.sample_rate)
-            gap_samples = int(0.03 * self.sample_rate)
-            if gap_samples + 2 * fade_samples > total_samples:
-                gap_samples = 0
+            # Padding is needed to avoid clicks. This seems to be a limitation of lib sounddevice
+            padding_samples = int(0.04 * self.sample_rate)
+            if padding_samples + 2 * fade_samples > total_samples:
+                padding_samples = 0
             envelope = np.linspace(volume, volume, total_samples)
             envelope[:fade_samples] = np.linspace(0, volume, fade_samples)
-            if gap_samples > 0:
-                envelope[-(fade_samples+gap_samples):-gap_samples] = np.linspace(volume, 0, fade_samples)
-                envelope[-gap_samples:] = np.linspace(0, 0, gap_samples)
+            if padding_samples > 0:
+                envelope[-(fade_samples+padding_samples):-padding_samples] = np.linspace(volume, 0, fade_samples)
+                envelope[-padding_samples:] = np.linspace(0, 0, padding_samples)
             else:
                 envelope[-fade_samples:] = np.linspace(volume, 0, fade_samples)
             return (wave * envelope).astype(np.float32)
@@ -426,6 +427,11 @@ Examples:
         default=0,
         help='How often to poll redis'
     )
+    parser.add_argument(
+        '--test-sound',
+        action='store_true',
+        help='Play a test sound'
+    )
 
     return parser
 
@@ -443,6 +449,13 @@ if __name__ == "__main__":
             redis_password=args.redis_password,
             sample_rate=args.sample_rate
         )
+
+        if args.test_sound:
+            player.play_note("A3", 0.5)
+            player.play_note("A4", 0.5)
+            player.play_note("A5", 0.5)
+            player.play_note("A6", 0.5)
+            exit(0)
 
         # Subscribe and play mode
         print(f"🎧 Subscribing to Redis channel '{args.channel}'...")
