@@ -10,3 +10,4 @@ wheels/
 .venv
 
 mandelbrot_final.png
+*.wav
