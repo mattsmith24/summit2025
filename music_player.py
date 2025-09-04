@@ -22,6 +22,8 @@ import os
 import sys
 from typing import Dict, Optional, Any
 from datetime import datetime
+from pathlib import Path
+import soundfile as sf
 
 # Try to import audio libraries
 try:
@@ -57,11 +59,14 @@ class MusicPlayer:
         'C6': 1046.50, 'C#6': 1108.73, 'DB6': 1108.73, 'D6': 1174.66, 'D#6': 1244.51, 'EB6': 1244.51,
         'E6': 1318.51, 'F6': 1396.91, 'F#6': 1479.98, 'GB6': 1479.98, 'G6': 1567.98, 'G#6': 1661.22, 'AB6': 1661.22,
         'A6': 1760.00, 'A#6': 1864.66, 'BB6': 1864.66, 'B6': 1975.53,
+
+        # Rest
+        'R': 0.0,
     }
 
     def __init__(self, redis_host: str = 'localhost', redis_port: int = 6379,
                  redis_db: int = 0, redis_password: Optional[str] = None,
-                 sample_rate: int = 44100):
+                 sample_rate: int = 44100, output_file: Optional[str] = None):
         """
         Initialize the music player.
 
@@ -79,6 +84,8 @@ class MusicPlayer:
         self.redis_password = redis_password or os.getenv('REDIS_PASSWORD')
 
         self.sample_rate = sample_rate
+        self.output_file = output_file
+        self.output_buffer = np.array([])
         self.is_playing = False
         self.stop_event = threading.Event()
 
@@ -141,6 +148,9 @@ class MusicPlayer:
             raise
 
     def close(self):
+        if self.output_file:
+            # Save as wav file
+            sf.write(self.output_file, self.output_buffer, self.sample_rate)
         self.redis_client.close()
 
     def generate_tone(self, frequency: float, duration: float, volume: float = 0.3) -> np.ndarray:
@@ -195,10 +205,6 @@ class MusicPlayer:
         # Clean up note name
         note_name = note_name.strip().upper()
 
-        if note_name == "R":  # rest
-            time.sleep(duration)
-            return
-
         # Get frequency for the note
         frequency = self.NOTE_FREQUENCIES.get(note_name)
 
@@ -225,6 +231,8 @@ class MusicPlayer:
                 try:
                     sd.play(tone, self.sample_rate)
                     sd.wait()  # Wait until the note finishes playing
+                    if self.output_file:
+                        self.output_buffer = np.concatenate((self.output_buffer, tone))
                 except Exception as e:
                     print(f"Sound device exception: {e}")
         else:
@@ -432,6 +440,12 @@ Examples:
         action='store_true',
         help='Play a test sound'
     )
+    parser.add_argument(
+        '--output-file',
+        type=str,
+        default=None,
+        help='Output file for audio (default: None)'
+    )
 
     return parser
 
@@ -447,7 +461,8 @@ if __name__ == "__main__":
             redis_port=args.redis_port,
             redis_db=args.redis_db,
             redis_password=args.redis_password,
-            sample_rate=args.sample_rate
+            sample_rate=args.sample_rate,
+            output_file=args.output_file
         )
 
         if args.test_sound:
