@@ -1,11 +1,17 @@
 # WARNING: AI Slop
 
+This code was produced to demo some concepts as part of my talk
+at a work Developer Summit. It was mostly authored by Windsurf and claude sonnet 4.
+
+There are a few different scripts to demo various Redis features and techniques.
+
 ## Installation
 
-1. Install Python dependencies:
-   ```bash
-    sudo apt install libportaudio2
-   ```
+```bash
+sudo apt install libportaudio2
+```
+
+Install uv: https://docs.astral.sh/uv/
 
 ## Run It
 
